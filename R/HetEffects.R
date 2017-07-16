@@ -117,7 +117,6 @@ HetEffects <- function(formula,
     stop("Formula must contain '0 +' unless you're including an intercept")
   }
   
-      
   # TODO: implement with Matrix::sparse.model.matrix
   
   # Parse formula, data into model matrix, Y
@@ -218,11 +217,12 @@ HetEffects <- function(formula,
   newXmat <- formula_matrix_char_sep(formula, newXmat)
   colnames(newXmat)
   
+  # Add "T_" to varnames
   treat_columns <- find_treatment_cols(treatments, newXmat)
   colnames(newXmat)[treat_columns] <- paste0("T_", colnames((newXmat))[treat_columns])
+  
   newXmatb <- data.frame(newXmat)
   newXmatb <- newXmatb[,colnames(Xmatb)]
-  
   
   # Put everything in mod matrix:
   Xmatb <- data.frame(Xmat)
@@ -238,18 +238,11 @@ HetEffects <- function(formula,
   # newXb <- data.frame(model.matrix(~ -1 +., newX))
   # names(newXb) == names(Xmatb)
   
-  # TODO: create new "SL.HET.glmnet" functions to feed
-  # to SuperLearner's SL.library param.
-  # use these: 
-  # models <- c('lasso', 'e_net_0.75', 'e_net_0.5', 'e_net_0.25', 'FindIt', 
-  #             'BayesGLM', 'GLMBoost', 'BART', 'RandomForest', 'glm', 'KRLS', 'SVM-SMO')
-  # test with lasso.
-
-    if(!bootstrap){
+  if(!bootstrap){
 
     bsl = SuperLearner(Y = Y,
             X = Xmatb, 
-            newX = newX,
+            newX = newXmatb,
             family = family,
             SL.library = SL.library,
             method = method,
@@ -262,7 +255,7 @@ HetEffects <- function(formula,
       res = list(
       weights = bsl$coef,
       predictions = bsl$SL.predict,
-      effectX = newXmat
+      effectX = newXmatb
     )
       
     # nrow(res$effectX) == length(res$predictions)

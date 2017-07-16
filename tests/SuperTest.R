@@ -60,7 +60,6 @@ along.num<- match(svdat$cond.alongWith, along)
 approve_bi<- ifelse(svdat$approval<3, 1, 0)
 svdat$pid3 <- as.factor(svdat$pid3l)
 
-
 # params for testing: 
 formula = approve_bi ~ 0 + cond.type * pid3l + cond.party * pid3l
 formula = approve_bi ~ 0 + cond.type + cond.party + pid3l
@@ -79,20 +78,27 @@ control = list()
 cvControl = list()
 
 
+source('R/HetEffects.R')
 
+# Models to implement: 
 models <- c('lasso', 'e_net_0.75', 'e_net_0.5', 'e_net_0.25', 'FindIt', 
                   'BayesGLM', 'GLMBoost', 'BART', 'RandomForest', 'glm', 'KRLS', 'SVM-SMO')
 
+# build Library 
+SL.glmnet_a_1_lasso <- function(..., alpha = 1){ SL.glmnet(..., alpha = 1)}
+SL.glmnet_a_0.75 <- function(..., alpha = 0.75){ SL.glmnet(..., alpha = 0.75)}
+SL.glmnet_a_0.5 <- function(..., alpha = 0.5){ SL.glmnet(..., alpha = 0.5)}
+SL.glmnet_a_0.25 <- function(..., alpha = 0.25){ SL.glmnet(..., alpha = 0.25)}
 
-source('R/HetEffects.R')
+test.SL.library = c("SL.mean", "SL.glm", "SL.glmnet_a_1_lasso", "SL.glmnet_a_0.5"), 
 
 # Set params for initial debugging
 plotdat <- HetEffects(
-  formula = approve_bi ~ 0 + cond.type + cond.party + pid3, 
+  formula = approve_bi ~ 0 + cond.type * pid3l + cond.party * pid3l, 
   treatments = c("cond.type", "cond.party"), 
   data = svdat, 
   bootstrap = FALSE, 
-  SL.library = c("SL.glm", "SL.mean"), 
+  SL.library = test.SL.library, 
   method = 'method.NNLS', 
   family = binomial(), 
   id = NULL, 
@@ -102,9 +108,13 @@ plotdat <- HetEffects(
   cvControl = list()
 )
 
+plotdat$weights
+
+
 ### CONVERT DUMMIES TO FACTOR ###
 dummies = plotdat$effectX
-header <- unlist(strsplit(colnames(dummies), '[.]'))[2 * (1:ncol(dummies))]
+header <- strsplit(colnames(dummies), ':')
+header <- unlist(strsplit(colnames(dummies), '___'))[2 * (1:ncol(dummies))]
 species <- factor(dummies %*% 1:ncol(dummies), labels = header)
 
 

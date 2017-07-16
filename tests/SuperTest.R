@@ -2,10 +2,118 @@
 # 
 # Author: solomon
 ###############################################################################
-setwd('~/Dropbox/creditClaimingProjects/het/HetPackage')
+# setwd('~/Dropbox/creditClaimingProjects/het/HetPackage')
 set.seed(23432)
+  
+load('tests/Het_Experiment.RData')
 
-source('HetEffects.R')
+names(svdat)[23:51] = c("preq1", "preq2", "preq3", 
+                      "nextc", "contr", "nextt", "treat",
+                      "approval", "therm", "fiscRespbl", 
+                      "bringMoneyEff", "passLegEff",
+                      "secReqMC", "likGetM", "daysGetM", "break", 
+                      "gender", "race", "byear", "ntvEnglish",
+                      "ideo3", "voted", "pid3", "pidCloser", "educ",
+                      "inc", "finalinst", "howLong", "comments")
+approv = agrep("I pay attention", max.distance=.3,
+             svdat$comments)
+approv2 = agrep("I PAY ATTENTION", max.distance=.3,
+              svdat$comments)
+approv = c(approv,approv2)
+#svdat$comments[-approv]
+svdat = svdat[approv,]
+
+svdat$cond.type[which(svdat$contr==1)] = "control" 
+svdat$cond.type = relevel(factor(svdat$cond.type), ref="control") 
+svdat$cond.money[which(svdat$contr==1)] = "control" 
+svdat$cond.money = relevel(factor(svdat$cond.money), ref="control") 
+svdat$cond.stage[which(svdat$contr==1)] = "control" 
+svdat$cond.stage = relevel(factor(svdat$cond.stage), ref="control") 
+svdat$cond.party[which(svdat$contr==1)] = "control" 
+svdat$cond.party = relevel(factor(svdat$cond.party), ref="control") 
+svdat$cond.alongWith[which(svdat$contr==1)] = "control" 
+svdat$cond.alongWith = relevel(factor(svdat$cond.alongWith), ref="control") 
+levels(svdat$cond.alongWith) = c("control", "alone", "w/ Dem", "w/ Rep") 
+
+# Fix up pid3
+svdat$pid3l = factor(c("Dem", "Rep", "Ind/Oth", "Ind/Oth")[svdat$pid3])
+svdat$pid3l = relevel(svdat$pid3l, ref="Ind/Oth")
+
+with<- rep(0, nrow(svdat))
+with[grep('w/', as.character(svdat$cond.along))]<- 1
+
+cons<- ifelse(svdat$ideo3<3, 1, 0)
+lib<- ifelse(svdat$ideo3==4|svdat$ideo3==5, 1, 0)
+
+##setting up the conditions
+types<- sort(unique(as.character(svdat$cond.type)))
+type.num<- match(svdat$cond.type, types)
+number<- c('control', '$20 million', '$50 thousand')
+amount.num<- match(svdat$cond.money, number)
+request<- c('control', 'requested', 'secured', 'will request')
+stage.num<- match(svdat$cond.stage, request)
+party<- c('control', 'a Republican', 'a Democrat')
+party.num<- match(svdat$cond.party, party)
+along<- c('control', 'alone', 'w/ Rep', 'w/ Dem')
+along.num<- match(svdat$cond.alongWith, along)
+
+approve_bi<- ifelse(svdat$approval<3, 1, 0)
+svdat$pid3 <- as.factor(svdat$pid3l)
+
+
+# params for testing: 
+formula = approve_bi ~ 0 + cond.type * pid3l + cond.party * pid3l
+formula = approve_bi ~ 0 + cond.type + cond.party + pid3l
+treatments = c("cond.type", "cond.party")
+data = svdat
+X_intercept = FALSE
+bootstrap = FALSE
+max_covariates = 1e10
+SL.library = c("SL.glm", "SL.mean")
+method = 'method.NNLS'
+family = binomial()
+id = NULL
+verbose = TRUE
+weights = NULL
+control = list()
+cvControl = list()
+
+
+
+models <- c('lasso', 'e_net_0.75', 'e_net_0.5', 'e_net_0.25', 'FindIt', 
+                  'BayesGLM', 'GLMBoost', 'BART', 'RandomForest', 'glm', 'KRLS', 'SVM-SMO')
+
+
+source('R/HetEffects.R')
+
+# Set params for initial debugging
+plotdat <- HetEffects(
+  formula = approve_bi ~ 0 + cond.type + cond.party + pid3, 
+  treatments = c("cond.type", "cond.party"), 
+  data = svdat, 
+  bootstrap = FALSE, 
+  SL.library = c("SL.glm", "SL.mean"), 
+  method = 'method.NNLS', 
+  family = binomial(), 
+  id = NULL, 
+  verbose = TRUE, 
+  weights = NULL, 
+  control = list(), 
+  cvControl = list()
+)
+
+### CONVERT DUMMIES TO FACTOR ###
+dummies = plotdat$effectX
+header <- unlist(strsplit(colnames(dummies), '[.]'))[2 * (1:ncol(dummies))]
+species <- factor(dummies %*% 1:ncol(dummies), labels = header)
+
+
+
+
+
+
+
+
 
 n <- 500
 p <- 2

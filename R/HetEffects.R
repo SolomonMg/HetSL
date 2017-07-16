@@ -56,7 +56,7 @@
 #' @param Family link function for models. Currently either gaussian() or binomial().
 #' @param SL.library library of algorithms
 #' @param method Loss function and model to estimate ensemble weights.
-#'        Currently method.NNLS, method.NNloglik, or custom
+#'        Default is method.NNLS, method.NNloglik, or custom
 #'        (see SuperLearner::create.method.template()).
 #' @param id cluster id
 #' @param verbose View progress of estimation? Defaults to TRUE.
@@ -77,9 +77,12 @@
 #' @export
 #' @author Solomon Messing and Sean Westwood and Justin Grimmer
 
+
 HetEffects <- function(formula,
     data,
+    X_intercept = FALSE,
     treatments,
+    max_covariates = 1e10,
     subset,
     weights = NULL,
     family = gaussian(),
@@ -89,11 +92,12 @@ HetEffects <- function(formula,
     verbose = TRUE,
     control = list(),
     cvControl = list(),
-    bootstrap = TRUE,
+    bootstrap = FALSE,
     cores = 1,
     R = 2,
     na.action = NULL, ...){
   # TODO: allow people to pass covariate matrix + weights?
+  # TODO: Implement bootstrapping?
   # TODO: Consider setting tuning params on the fly
     # glmnet::alpha
     # knn::k
@@ -108,54 +112,144 @@ HetEffects <- function(formula,
       stop("All treatments must be in the formula")
     }
   }
-
+  
+  if (X_intercept==FALSE & length(grep("0", formula[3])) == 0){
+    stop("Formula must contain '0 +' unless you're including an intercept")
+  }
+  
+      
+  # TODO: implement with Matrix::sparse.model.matrix
+  
   # Parse formula, data into model matrix, Y
   X_frame <- model.frame(formula, data=data)
+  names(X_frame)
   toInclude <- complete.cases(X_frame)
-  Xmat <- model.matrix(formula, data=data)
+  
+  Xmat <- model.matrix(formula, data=X_frame)
   Xmat <- Xmat[toInclude,]
   Y <- X_frame[[1]]
   Y <- Y[toInclude]
+  colnames(Xmat)
   Xmat <- data.frame(Xmat)
+  
+  # Check to make sure there are no NAs in Xmat values
+  anyNA = function(x) any(is.na(x))
+  if (any(apply(Xmat, 2, anyNA))){
+    stop("NAs remain, remove or recode before execution")
+  }
+  
+  # add character separation between different categories for same variable
+  # in design matrix:
+  formula_matrix_char_sep <- function(formula, Xmat){
+    group_vars <- unique(unlist(strsplit(as.character(formula[3]), 
+                                         split=" \\+ | \\* ")))
+    for(i in 1:length(group_vars)){
+      var_idx <- grep(pattern = group_vars[i], x = colnames(Xmat))
+      colnames(Xmat)[var_idx] <- gsub(group_vars[i], 
+                  paste0(group_vars[i], "___"), colnames(Xmat)[var_idx])
+    }
+    Xmat
+  }
 
-  # TODO: Take all covariates, all treatments, interactions
+  Xmat <- formula_matrix_char_sep(formula, Xmat)
+  names(Xmat)
+  
+  # Take all covariates, all treatments, interactions
   # rename treatment columns T_whatever so that we can grep
   # them in FindIt.
 
-  attr(Xmat, "treatments") <- treatments
-
+  # Find treatment cols
+  find_treatment_cols <- function(treatments, Xmat){
+    treat_columns = c()
+    for(i in 1:length(treatments)){
+      tTreat_columns <- c(treat_columns, grep(treatments[i],
+                                             colnames(Xmat))) 
+    }
+    treat_columns = sort(unique(Treat_columns))
+    treat_columns
+  }
+  
+  treat_columns <- find_treatment_cols(treatments, Xmat)
+  
+  T_var_names <- colnames(Xmat)[treat_columns]
+  cov_var_names <- colnames(Xmat)[-treat_columns]
+  
+  # Mark w/ T_
+  colnames(Xmat)[treat_columns] <- paste0("T_", colnames((Xmat))[treat_columns])
+  # attr(Xmat, "treat_columns") <- treat_columns
+  
   # Make sure there are no numeric variables
   col_numeric <- apply(Xmat, 2, function(x) length(unique(x)) > 20 )
   if (any(col_numeric)) stop(
     "Columns in design matrix must be discrete (20 unique values or fewer).")
 
   # Generate matrix for prediction:
-
-  # First make sure there are not too many factor combinations
-  veclist = apply(Xmat[,-1], 2, unique)
+  
+  # veclist = apply(Xmat, 2, unique)
+  veclist = apply(X_frame[,-1], 2, unique)
+  # veclist = data.frame(veclist)
   veclist = lapply(veclist, na.omit)
-  veclist = lapply(veclist, as.vector)
-  if (prod(unlist(lapply(veclist, length))) > 1e10) {
+  # veclist = lapply(veclist, as.vector)
+  
+  # Make sure there are not too many factor combinations
+  n_cov_combinations <- prod(unlist(lapply(veclist, length)))
+  if (n_cov_combinations > max_covariates) {
     stop("Too many factor combinations to estimate effects")
   }
+  
+  # Create matrix for effects:
+  # newX = expand.grid(veclist, stringsAsFactors=FALSE)
+  newX = expand.grid(veclist)
+  
+  # for every var in newX, relevel according to X_frame
+  same_factor_lvls <- function(old_x, new_x){
+    x <- factor(new_x, levels = levels(old_x))
+    x
+  }
+  
+  for (col in names(newX)){
+    newX[[col]] <- same_factor_lvls(X_frame[[col]], newX[[col]])
+    
+  }
+  
+  # Put together model matrix for newX
+  formula_rhs <- as.formula(paste0( "~", formula[3]))
+  newXmat <- model.matrix(formula_rhs, data=newX)
+  newXmat <- formula_matrix_char_sep(formula, newXmat)
+  colnames(newXmat)
+  
+  treat_columns <- find_treatment_cols(treatments, newXmat)
+  colnames(newXmat)[treat_columns] <- paste0("T_", colnames((newXmat))[treat_columns])
+  newXmatb <- data.frame(newXmat)
+  newXmatb <- newXmatb[,colnames(Xmatb)]
+  
+  
+  # Put everything in mod matrix:
+  Xmatb <- data.frame(Xmat)
+  
+  # Fix colnames (data.frame subsitutes " " with ".")
+  # colnames(Xmatb) <- colnames(Xmat)
+  setdiff(names(Xmatb), names(newXmatb))
+  setdiff(names(newXmatb), names(Xmatb))
+  
+  attr(Xmatb, "treatments") <- treatments
+  
+  # No longer needed? 
+  # newXb <- data.frame(model.matrix(~ -1 +., newX))
+  # names(newXb) == names(Xmatb)
+  
+  # TODO: create new "SL.HET.glmnet" functions to feed
+  # to SuperLearner's SL.library param.
+  # use these: 
+  # models <- c('lasso', 'e_net_0.75', 'e_net_0.5', 'e_net_0.25', 'FindIt', 
+  #             'BayesGLM', 'GLMBoost', 'BART', 'RandomForest', 'glm', 'KRLS', 'SVM-SMO')
+  # test with lasso.
 
-  newX = expand.grid(veclist, stringsAsFactors=FALSE)
-
-  # TODO: Check to make sure there are no NAs
-  #  anyNA = function(x) any(is.na(x))
-  #  apply(Xmat, 2, anyNA)
-
-
-  # Put everything in mod matrix first:
-  Xmatb <- data.frame(model.matrix(~ -1 + ., Xmat[,-1]))
-  newXb <- data.frame(model.matrix(~ -1 +., newX))
-#  names(newXb) == names(Xmatb)
-
-  if(!bootstrap){
+    if(!bootstrap){
 
     bsl = SuperLearner(Y = Y,
-            X = Xmatb, # don't pass intercept
-            newX = newXb,
+            X = Xmatb, 
+            newX = newX,
             family = family,
             SL.library = SL.library,
             method = method,
@@ -165,13 +259,18 @@ HetEffects <- function(formula,
             cvControl = cvControl,
             obsWeights = weights)
 
-    res = list(
+      res = list(
       weights = bsl$coef,
-      predictions = bsl$library.predict,
-      effectX = newXb
+      predictions = bsl$SL.predict,
+      effectX = newXmat
     )
+      
+    # nrow(res$effectX) == length(res$predictions)
+    return(res)
 
   } else {
+    
+    stop("bootstrap not yet implemented.")
     # bootstrap SuperLearner
     # get effects for every combination of covariates
     # install.packages('doMC')
@@ -196,43 +295,15 @@ HetEffects <- function(formula,
               cvControl = cvControl,
               obsWeights = weights)
 
-       res[[i]] = list(weights = bsl$coef, predictions = bsl$library.predict)
+       res[[i]] = list(weights = bsl$coef, predictions = bsl$SL.predict)
 
     }
-  }
   return(list(boostrap_samples = res, effectX = newXb))
+  }
 }
-
-
-#' Split by Quantile
-#'
-#' The split_by_quantile function splits a quantitative variable into
-#' n - 1 quantile chunks.
-#'
-#' @usage
-#' split_by_quantile(x, n)
-#'
-#' @param x The variable
-#' @param n The n-th quantiles to split the variable, results in n - 1 levels.
-#'
-#' @return A factor with n - 1 levels.
-#' @export
-#' @author Solomon Messing
-split_by_quantile = function(x, n){
-  qs = quantile(x, probs = seq(0, 1, length.out = n))
-  if(length(unique(qs)) < n) warning("Binning quantitative variable to < n bins")
-  qs[1] = qs[1] - 0.0000001 # ensures cut doesn't set values at lowest quintile to NA
-  cut(x, unique(qs))
-}
-
-# Example usage:
-# Xmat_buckets = Xmat
-# Xmat_buckets[col_numeric] = apply(Xmat_buckets[col_numeric], 2,
-#     quintilize)
-
-
-
-
-
 
 # TODO: process and format results, display for the user.
+
+
+
+

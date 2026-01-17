@@ -1,0 +1,38 @@
+# R package build artifacts
+*.Rcheck/
+*.tar.gz
+*.Rproj.user/
+
+# RStudio files
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+
+# Mac OS
+.DS_Store
+
+# Byte-compiled files
+*.pyc
+__pycache__/
+
+# Generated documentation (keep man/ but ignore if regenerated)
+# man/  # Actually we want to keep this
+
+# Test artifacts
+tests/testthat/_snaps/
+
+# Vignette build artifacts
+vignettes/*.html
+vignettes/*.pdf
+doc/
+Meta/
+
+# knitr cache
+*_cache/
+/cache/
+
+# Temporary files
+*.tmp
+*.bak
+*~

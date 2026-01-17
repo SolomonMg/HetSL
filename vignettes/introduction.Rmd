@@ -1,0 +1,43 @@
+---
+title: "HetEffects: Introduction"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{HetEffects: Introduction}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# Overview
+
+HetEffects provides ensemble methods for estimating heterogeneous treatment
+effects using flexible machine learning models and cross-validated weights.
+
+# Quick example (small sample)
+
+```{r}
+library(HetEffects)
+data("het_experiment")
+
+covars <- c("pid3", "ideo3", "gender", "race", "educ", "inc", "byear")
+dat <- het_experiment[, c("approval", "party_treat", covars)]
+dat <- dat[complete.cases(dat), ]
+dat <- dat[seq_len(min(200, nrow(dat))), ]
+
+fit <- het_ensemble(
+  approval ~ pid3 + ideo3 + gender + race + educ + inc + byear | party_treat,
+  data = dat,
+  learners = "lasso",
+  nfolds = 3,
+  family = "gaussian",
+  verbose = FALSE
+)
+
+ate(fit)
+```

@@ -1,0 +1,55 @@
+Package: HetEffects
+Title: Ensemble Methods for Heterogeneous Treatment Effects
+Version: 0.1.0
+Authors@R: c(
+    person("Solomon", "Messing", email = "solomon.messing@gmail.com", role = c("aut", "cre")),
+    person("Justin", "Grimmer", role = "aut"),
+    person("Sean", "Westwood", role = "aut")
+  )
+Author: Solomon Messing [aut, cre], Justin Grimmer [aut], Sean Westwood [aut]
+Maintainer: Solomon Messing <solomon.messing@gmail.com>
+Description: Implements ensemble methods for estimating heterogeneous treatment effects,
+    extending Grimmer, Messing & Westwood (2017). The package combines multiple machine
+    learning methods (LASSO, elastic net, BART, random forests, causal forests, XGBoost,
+    and more) using cross-validation to optimize ensemble weights. Supports both
+    randomized experiments and observational studies with propensity score weighting.
+    Provides analytic standard errors via influence functions and bootstrap inference.
+License: MIT + file LICENSE
+URL: https://github.com/solomonmessing/HetEffects
+BugReports: https://github.com/solomonmessing/HetEffects/issues
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Depends:
+    R (>= 4.1.0)
+Imports:
+    glmnet (>= 4.0),
+    quadprog (>= 1.5-8),
+    stats,
+    utils,
+    methods,
+    Matrix
+Suggests:
+    arm,
+    dbarts,
+    gbm,
+    BayesTree,
+    mboost,
+    randomForest,
+    KRLS,
+    e1071,
+    FindIt,
+    grf,
+    xgboost,
+    future,
+    furrr,
+    ggplot2 (>= 3.4.0),
+    rlang,
+    shiny,
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown,
+    withr
+Config/testthat/edition: 3
+VignetteBuilder: knitr

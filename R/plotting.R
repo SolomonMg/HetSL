@@ -36,20 +36,19 @@ plot.het_ensemble <- function(x,
 #' @keywords internal
 .plot_weights <- function(object, ...) {
   weights <- sort(object$weights, decreasing = TRUE)
-  df <- data.frame(learner = names(weights), weight = as.numeric(weights))
+  df <- data.frame(
+    learner = factor(names(weights), levels = names(weights)),
+    weight = as.numeric(weights)
+  )
 
   if (.is_installed("ggplot2")) {
-    ggplot2::ggplot(
-      df,
-      ggplot2::aes(
-        x = stats::reorder(rlang::.data$learner, rlang::.data$weight),
-        y = rlang::.data$weight
-      )
-    ) +
+    p <- ggplot2::ggplot(df, ggplot2::aes(x = learner, y = weight)) +
       ggplot2::geom_col(fill = "#2a6f97") +
       ggplot2::coord_flip() +
       ggplot2::labs(x = NULL, y = "Weight", title = "Ensemble Weights") +
       ggplot2::theme_minimal()
+    print(p)
+    invisible(p)
   } else {
     graphics::barplot(
       height = df$weight,
@@ -60,6 +59,7 @@ plot.het_ensemble <- function(x,
       xlab = "Weight",
       main = "Ensemble Weights"
     )
+    invisible(NULL)
   }
 }
 
@@ -70,10 +70,12 @@ plot.het_ensemble <- function(x,
 
   if (.is_installed("ggplot2")) {
     df <- data.frame(cate = cate_values)
-    ggplot2::ggplot(df, ggplot2::aes(x = rlang::.data$cate)) +
+    p <- ggplot2::ggplot(df, ggplot2::aes(x = cate)) +
       ggplot2::geom_histogram(bins = 30, fill = "#2a6f97", color = "white") +
       ggplot2::labs(x = "CATE", y = "Count", title = "CATE Distribution") +
       ggplot2::theme_minimal()
+    print(p)
+    invisible(p)
   } else {
     graphics::hist(
       cate_values,
@@ -82,6 +84,7 @@ plot.het_ensemble <- function(x,
       main = "CATE Distribution",
       xlab = "CATE"
     )
+    invisible(NULL)
   }
 }
 
@@ -91,35 +94,37 @@ plot.het_ensemble <- function(x,
   mc <- mcate(object, moderator = moderator, ...)
 
   if (.is_installed("ggplot2")) {
-    ggplot2::ggplot(
-      mc,
-      ggplot2::aes(x = rlang::.data$moderator_value, y = rlang::.data$estimate)
-    ) +
+    p <- ggplot2::ggplot(mc, ggplot2::aes(x = moderator_value, y = estimate)) +
       ggplot2::geom_line(color = "#2a6f97") +
-      ggplot2::geom_ribbon(
-        ggplot2::aes(
-          ymin = rlang::.data$ci_lower,
-          ymax = rlang::.data$ci_upper
-        ),
-        alpha = 0.2,
-        fill = "#2a6f97"
-      ) +
+      ggplot2::geom_point(color = "#2a6f97") +
       ggplot2::labs(
         x = moderator,
         y = "MCATE",
         title = sprintf("MCATE by %s", moderator)
       ) +
       ggplot2::theme_minimal()
+
+    # Add ribbon if CIs are valid
+    if (!all(is.na(mc$ci_lower)) && !all(is.infinite(mc$ci_lower))) {
+      p <- p + ggplot2::geom_ribbon(
+        ggplot2::aes(ymin = ci_lower, ymax = ci_upper),
+        alpha = 0.2,
+        fill = "#2a6f97"
+      )
+    }
+    print(p)
+    invisible(p)
   } else {
     plot(
       mc$moderator_value, mc$estimate,
-      type = "l",
+      type = "b",
       col = "steelblue",
+      pch = 19,
       xlab = moderator,
       ylab = "MCATE",
       main = sprintf("MCATE by %s", moderator)
     )
-    if (!all(is.na(mc$ci_lower))) {
+    if (!all(is.na(mc$ci_lower)) && !all(is.infinite(mc$ci_lower))) {
       graphics::polygon(
         c(mc$moderator_value, rev(mc$moderator_value)),
         c(mc$ci_lower, rev(mc$ci_upper)),
@@ -128,25 +133,28 @@ plot.het_ensemble <- function(x,
       )
       graphics::lines(mc$moderator_value, mc$estimate, col = "steelblue")
     }
+    invisible(NULL)
   }
 }
 
 #' Diagnostics plot
 #' @keywords internal
 .plot_diagnostics <- function(object, ...) {
-  fitted <- fitted.het_ensemble(object, type = "ensemble")
+  fitted_vals <- fitted.het_ensemble(object, type = "ensemble")
   y <- object$data$y
 
   if (.is_installed("ggplot2")) {
-    df <- data.frame(fitted = fitted, y = y)
-    ggplot2::ggplot(df, ggplot2::aes(x = fitted, y = y)) +
+    df <- data.frame(fitted = fitted_vals, observed = y)
+    p <- ggplot2::ggplot(df, ggplot2::aes(x = fitted, y = observed)) +
       ggplot2::geom_point(alpha = 0.4) +
-      ggplot2::geom_smooth(method = "loess", se = FALSE, color = "#2a6f97") +
+      ggplot2::geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "gray50") +
       ggplot2::labs(x = "Fitted", y = "Observed", title = "Observed vs Fitted") +
       ggplot2::theme_minimal()
+    print(p)
+    invisible(p)
   } else {
     plot(
-      fitted, y,
+      fitted_vals, y,
       xlab = "Fitted",
       ylab = "Observed",
       main = "Observed vs Fitted",
@@ -154,6 +162,7 @@ plot.het_ensemble <- function(x,
       col = grDevices::rgb(0.2, 0.4, 0.6, 0.4)
     )
     graphics::abline(0, 1, col = "gray50", lty = 2)
+    invisible(NULL)
   }
 }
 

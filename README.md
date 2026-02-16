@@ -79,7 +79,9 @@ Register custom learners with `register_learner()`.
 ## Learner tuning
 
 Pass multiple parameter configurations per learner to create distinct
-ensemble candidates:
+ensemble candidates. Each configuration becomes its own learner variant
+with a separate ensemble weight, so cross-validation automatically
+selects the best mix:
 
 ```r
 fit <- het_ensemble(
@@ -88,16 +90,16 @@ fit <- het_ensemble(
   learners = c("lasso", "svm"),
   learner_params = list(
     svm = list(
-      list(cost = 0.1, kernel = "radial"),
-      list(cost = 1,   kernel = "radial"),
-      list(cost = 10,  kernel = "polynomial")
+      list(cost = 1,  kernel = "radial"),
+      list(cost = 10, kernel = "polynomial")
     )
   )
 )
 ```
 
-Each configuration is treated as its own learner variant and receives a
-separate ensemble weight.
+Any parameters accepted by the underlying fitting function can be passed
+this way (e.g., `cost`, `gamma`, `kernel`, `degree` for SVM via
+`e1071::svm`).
 
 ## Inference
 

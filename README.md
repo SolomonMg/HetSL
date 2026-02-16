@@ -1,15 +1,15 @@
 # HetEffects
 
-Ensemble methods for estimating heterogeneous treatment effects,
+Targeted-learing methods for estimating heterogeneous treatment effects,
 implementing the approach described in [Grimmer, Messing & Westwood
 (2017)](https://doi.org/10.1017/pan.2017.2).
 
-The package combines multiple machine learning methods using
-cross-validation to optimize ensemble weights, then estimates treatment
+The package combines targeted learning---multiple machine learning methods using
+cross-validation to optimize ensemble weights---to estimate treatment
 effects that vary across subgroups defined by observed covariates. It
-supports both randomized experiments and observational studies (via
-propensity score weighting), and provides analytic standard errors via
-influence functions as well as bootstrap inference.
+supports both randomized experiments and observational studies, and 
+provides analytic standard errors via influence functions as well 
+as bootstrap inference.
 
 ## Installation
 

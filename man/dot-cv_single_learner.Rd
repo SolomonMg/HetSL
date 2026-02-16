@@ -16,6 +16,7 @@
   weights = NULL,
   on_error = "warn",
   verbose = TRUE,
+  params = list(),
   ...
 )
 }
@@ -41,6 +42,8 @@
 \item{on_error}{Error handling mode}
 
 \item{verbose}{Print progress}
+
+\item{params}{List of learner-specific parameters}
 
 \item{...}{Additional arguments to fit function}
 }

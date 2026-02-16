@@ -54,13 +54,14 @@ NULL
 #' @param weights Observation weights
 #' @param on_error Error handling mode
 #' @param verbose Print progress
+#' @param params List of learner-specific parameters
 #' @param ... Additional arguments to fit function
 #' @return List with cv_predictions and learner_info
 #' @keywords internal
 .cv_single_learner <- function(X, y, treatment, folds, learner_name,
                                fit_fn, predict_fn, family = "gaussian",
                                weights = NULL, on_error = "warn",
-                               verbose = TRUE, ...) {
+                               verbose = TRUE, params = list(), ...) {
 
   n <- length(y)
   nfolds <- max(folds)
@@ -84,9 +85,12 @@ NULL
     w_train <- if (!is.null(weights)) weights[train_idx] else NULL
 
     # Fit model
+    fit_args <- c(
+      list(X_train, y_train, treat_train, family = family, weights = w_train),
+      params
+    )
     model <- .safe_try(
-      fit_fn(X_train, y_train, treat_train, family = family,
-             weights = w_train, ...),
+      do.call(fit_fn, fit_args),
       on_error = on_error,
       learner_name = sprintf("%s (fold %d)", learner_name, fold)
     )
@@ -159,9 +163,13 @@ NULL
 
     fit_one <- function(lname) {
       lspec <- learners[[lname]]
+      fit_args <- c(
+        list(X, y, treatment, family = family, weights = weights),
+        lspec$params %||% list()
+      )
       fit_time <- system.time({
         model <- .safe_try(
-          lspec$fit_fn(X, y, treatment, family = family, weights = weights),
+          do.call(lspec$fit_fn, fit_args),
           on_error = on_error,
           learner_name = lname
         )
@@ -235,6 +243,7 @@ NULL
           predict_fn = lspec$predict_fn,
           family = family,
           weights = weights,
+          params = lspec$params %||% list(),
           on_error = on_error,
           verbose = FALSE
         )
@@ -254,6 +263,7 @@ NULL
         predict_fn = lspec$predict_fn,
         family = family,
         weights = weights,
+        params = lspec$params %||% list(),
         on_error = on_error,
         verbose = verbose
       )

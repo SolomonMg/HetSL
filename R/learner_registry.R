@@ -289,6 +289,75 @@ register_learner <- function(name, fit_fn, predict_fn, package = NULL,
   .learner_env$registry[[name]]
 }
 
+.format_param_value <- function(value) {
+  if (length(value) != 1) {
+    value <- paste(value, collapse = "_")
+  }
+  value <- as.character(value)
+  value <- gsub("\\.", "p", value)
+  gsub("[^A-Za-z0-9]+", "", value)
+}
+
+.format_params_suffix <- function(params) {
+  if (is.null(params) || length(params) == 0) {
+    return("default")
+  }
+  parts <- mapply(function(key, value) {
+    paste0(key, .format_param_value(value))
+  }, names(params), params, SIMPLIFY = TRUE)
+  paste(parts, collapse = "_")
+}
+
+.normalize_param_sets <- function(params) {
+  if (is.null(params) || length(params) == 0) {
+    return(list(list()))
+  }
+  if (all(sapply(params, is.list))) {
+    params
+  } else {
+    list(params)
+  }
+}
+
+.expand_learner_specs <- function(learners, learner_params = NULL, check_installed = TRUE) {
+  .init_learner_registry()
+
+  specs <- list()
+
+  for (learner_name in learners) {
+    spec <- .get_learner(learner_name)
+
+    if (check_installed && !.is_installed(spec$package)) {
+      warning(sprintf("Package '%s' required for learner '%s' is not installed. Skipping.",
+                      spec$package, learner_name), call. = FALSE)
+      next
+    }
+
+    params_entry <- NULL
+    if (!is.null(learner_params) && learner_name %in% names(learner_params)) {
+      params_entry <- learner_params[[learner_name]]
+    }
+
+    param_sets <- .normalize_param_sets(params_entry)
+    for (params in param_sets) {
+      suffix <- .format_params_suffix(params)
+      tuned_name <- if (!is.null(params_entry)) {
+        paste(learner_name, suffix, sep = "__")
+      } else {
+        learner_name
+      }
+
+      tuned_spec <- spec
+      tuned_spec$name <- tuned_name
+      tuned_spec$base_name <- learner_name
+      tuned_spec$params <- params
+      specs[[tuned_name]] <- tuned_spec
+    }
+  }
+
+  specs
+}
+
 #' Get learner specifications for a vector of names
 #' @param names Character vector of learner names
 #' @param check_installed Check if packages are installed

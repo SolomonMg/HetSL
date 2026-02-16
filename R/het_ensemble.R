@@ -25,6 +25,10 @@ NULL
 #' @param propensity Either a character string naming a propensity score column
 #'   in data, or a formula for propensity score estimation. Used for
 #'   observational studies.
+#' @param learner_params Named list of learner-specific parameter sets. Each
+#'   entry can be a named list of parameters (single configuration) or a list
+#'   of named lists (multiple configurations). Each configuration is treated as
+#'   its own learner variant.
 #' @param parallel Logical. Use parallel processing via future/furrr.
 #' @param on_error Character. How to handle learner failures: "warn" (default),
 #'   "stop", or "ignore".
@@ -70,6 +74,19 @@ NULL
 #'   learners = c("lasso", "randomforest", "causal_forest")
 #' )
 #'
+#' # Learner variants with tuning parameters
+#' fit <- het_ensemble(
+#'   outcome ~ x1 + x2 | treat,
+#'   data = mydata,
+#'   learners = c("svm"),
+#'   learner_params = list(
+#'     svm = list(
+#'       list(cost = 0.1, gamma = 0.1, kernel = "radial"),
+#'       list(cost = 1, gamma = 1, kernel = "polynomial")
+#'     )
+#'   )
+#' )
+#'
 #' # Observational study with propensity weighting
 #' fit <- het_ensemble(
 #'   outcome ~ x1 + x2 | treat,
@@ -86,11 +103,12 @@ het_ensemble <- function(formula = NULL,
                          nfolds = 10L,
                          family = NULL,
                          weights = NULL,
-                         propensity = NULL,
-                         parallel = FALSE,
-                         on_error = c("warn", "stop", "ignore"),
-                         seed = NULL,
-                         verbose = TRUE) {
+                        propensity = NULL,
+                        learner_params = NULL,
+                        parallel = FALSE,
+                        on_error = c("warn", "stop", "ignore"),
+                        seed = NULL,
+                        verbose = TRUE) {
 
 
   # Capture call
@@ -193,10 +211,22 @@ het_ensemble <- function(formula = NULL,
          call. = FALSE)
   }
 
-  .message(sprintf("Using learners: %s", paste(learners, collapse = ", ")), verbose)
+  if (!is.null(learner_params)) {
+    unknown_params <- setdiff(names(learner_params), learners)
+    if (length(unknown_params) > 0) {
+      warning(sprintf("Ignoring learner_params for unknown learners: %s",
+                      paste(unknown_params, collapse = ", ")), call. = FALSE)
+    }
+  }
 
-  # Get learner specifications
-  learner_specs <- .get_learners(learners, check_installed = TRUE)
+  # Get learner specifications (including tuned variants)
+  learner_specs <- .expand_learner_specs(learners, learner_params, check_installed = TRUE)
+  if (length(learner_specs) == 0) {
+    stop("No learners available after applying learner_params.", call. = FALSE)
+  }
+  learners <- names(learner_specs)
+
+  .message(sprintf("Using learners: %s", paste(learners, collapse = ", ")), verbose)
 
   # Set up parallel processing
   if (parallel) {
@@ -238,9 +268,13 @@ het_ensemble <- function(formula = NULL,
   # Fit final models on full data
   final_models <- lapply(cv_results$successful_learners, function(lname) {
     lspec <- learner_specs[[lname]]
+    fit_args <- c(
+      list(X_full, y, treat_numeric, family = family, weights = weights),
+      lspec$params %||% list()
+    )
 
     .safe_try(
-      lspec$fit_fn(X_full, y, treat_numeric, family = family, weights = weights),
+      do.call(lspec$fit_fn, fit_args),
       on_error = on_error,
       learner_name = lname
     )
@@ -288,6 +322,9 @@ het_ensemble <- function(formula = NULL,
     formula = formula,
     family = family,
     learner_names = names(final_models),
+    learner_params = lapply(learner_specs[names(final_models)], function(spec) {
+      spec$params %||% list()
+    }),
     outcome_var = outcome_var,
     treatment_var = treatment_var,
     covariate_vars = covariate_vars,

@@ -11,36 +11,13 @@ NULL
 #' Fit LASSO model
 #' @keywords internal
 .fit_lasso <- function(X, y, treatment, family = "gaussian", weights = NULL, ...) {
-  X <- .as_matrix(X)
-
-  if (is.null(weights)) {
-    weights <- rep(1, length(y))
-  }
-
-  # Use cv.glmnet to select lambda
-  fam <- if (family == "binomial") "binomial" else "gaussian"
-
-  model <- glmnet::cv.glmnet(
-    x = X,
-    y = y,
-    family = fam,
-    alpha = 1,  # LASSO
-    weights = weights,
-    nfolds = 5,
-    ...
-  )
-
-  model
+  .fit_elastic_net(X, y, treatment, family = family, weights = weights, alpha = 1, ...)
 }
 
 #' Predict from LASSO model
 #' @keywords internal
 .predict_lasso <- function(model, newX, treatment = NULL, family = "gaussian") {
-  newX <- .as_matrix(newX)
-
-  type <- if (family == "binomial") "response" else "response"
-
-  as.vector(predict(model, newx = newX, s = "lambda.min", type = type))
+  .predict_elastic_net(model, newX, treatment = treatment, family = family)
 }
 
 # =============================================================================
@@ -573,7 +550,8 @@ NULL
 
 #' Fit SVM model
 #' @keywords internal
-.fit_svm <- function(X, y, treatment, family = "gaussian", weights = NULL, ...) {
+.fit_svm <- function(X, y, treatment, family = "gaussian", weights = NULL,
+                     kernel = "radial", ...) {
   .require_package("e1071", "svm")
 
   X <- .as_matrix(X)
@@ -592,7 +570,7 @@ NULL
       .y ~ .,
       data = df,
       type = "C-classification",
-      kernel = "radial",
+      kernel = kernel,
       probability = TRUE,
       ...
     )
@@ -602,7 +580,7 @@ NULL
       .y ~ .,
       data = df,
       type = "eps-regression",
-      kernel = "radial",
+      kernel = kernel,
       ...
     )
   }

@@ -15,6 +15,7 @@ het_ensemble(
   family = NULL,
   weights = NULL,
   propensity = NULL,
+  learner_params = NULL,
   parallel = FALSE,
   on_error = c("warn", "stop", "ignore"),
   seed = NULL,
@@ -48,6 +49,11 @@ for continuous outcomes. If NULL, auto-detected from outcome.}
 \item{propensity}{Either a character string naming a propensity score column
 in data, or a formula for propensity score estimation. Used for
 observational studies.}
+
+\item{learner_params}{Named list of learner-specific parameter sets. Each
+entry can be a named list of parameters (single configuration) or a list
+of named lists (multiple configurations). Each configuration is treated as
+its own learner variant.}
 
 \item{parallel}{Logical. Use parallel processing via future/furrr.}
 
@@ -100,6 +106,19 @@ fit <- het_ensemble(
   outcome ~ x1 + x2 | treat,
   data = mydata,
   learners = c("lasso", "randomforest", "causal_forest")
+)
+
+# Learner variants with tuning parameters
+fit <- het_ensemble(
+  outcome ~ x1 + x2 | treat,
+  data = mydata,
+  learners = c("svm"),
+  learner_params = list(
+    svm = list(
+      list(cost = 0.1, gamma = 0.1, kernel = "radial"),
+      list(cost = 1, gamma = 1, kernel = "polynomial")
+    )
+  )
 )
 
 # Observational study with propensity weighting
